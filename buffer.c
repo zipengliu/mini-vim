@@ -1,7 +1,7 @@
 #include "buffer.h"
 
 int num_lines;
-line_t *head, *cur_line;
+line_t *head, *cur_line;    // head is not used for storing data
 
 void initialize_buffer() {
     num_lines = 1;
@@ -48,12 +48,22 @@ void add_line_next(line_t *line) {
     new_line->prev = line;
     new_line->next = line->next;
     new_line->content = NULL;
+    if (line->next != NULL)
+        (line->next)->prev = new_line;
     line->next = new_line;
     num_lines++;
 }
 
 void add_line_prev(line_t *line) {
-
+    assert(line != NULL);
+    line_t *new_line = (line_t *) malloc(sizeof(line_t));
+    new_line->start = new_line->len = new_line->size = 0;
+    new_line->content = NULL;
+    new_line->next = line;
+    new_line->prev = line->prev;
+    (line->prev)->next = new_line;
+    line->prev = new_line;
+    num_lines++;
 }
 
 void add_string(line_t *line, int pos, char *str) {

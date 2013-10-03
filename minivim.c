@@ -87,7 +87,7 @@ void insert_mode() {
 
         switch (c) {
             case KEY_LEFT:
-                if (curx) curx--;
+                if (curx > 0) curx--;
                 break;
 
             case KEY_DOWN:
@@ -101,10 +101,12 @@ void insert_mode() {
                 break;
 
             case KEY_UP:
-                if (cury) {
+                if (cury > 0) {
                     cury--;
                     cur_line = cur_line->prev;
                     assert(cur_line != NULL);
+                    if (curx > cur_line->len)
+                        curx = cur_line->len;
                 }
                 break;
 
@@ -153,12 +155,26 @@ void insert_mode() {
                 break;
         }
     }
+    if (curx) curx--;
+    move(cury, curx);
+    refresh();
     werase(cmd_win);
     wrefresh(cmd_win);
 }
 
 void control_mode() {
     int c;
+
+    if (head->next == NULL) {
+        line_t *tmp = (line_t*) malloc(sizeof(line_t));
+        tmp->start = tmp->len = tmp->size = 0;
+        head->next = tmp;
+        tmp->prev = head;
+        tmp->content = NULL;
+        tmp->next = NULL;
+    }
+    cur_line = head->next;
+
     while (1) {
         move(cury, curx);
         refresh();
@@ -168,7 +184,7 @@ void control_mode() {
             case 'h':
             case KEY_LEFT:
             case KEY_DEL:
-                if (curx) curx--;
+                if (curx > 0) curx--;
                 break;
 
             case 'j':
@@ -178,23 +194,25 @@ void control_mode() {
                     cury++;
                     cur_line = cur_line->next;
                     assert(cur_line != NULL);
-                    if (curx > cur_line->len)
-                        curx = cur_line->len;
+                    if (curx > cur_line->len - 1)
+                        curx = cur_line->len - 1;
                 }
                 break;
 
             case 'k':
             case KEY_UP:
-                if (cury) {
+                if (cury > 0) {
                     cury--;
                     cur_line = cur_line->prev;
                     assert(cur_line != NULL);
+                    if (curx > cur_line->len - 1)
+                        curx = cur_line->len - 1;
                 }
                 break;
 
             case 'l':
             case KEY_RIGHT:
-                if (curx < cur_line->len) curx++;
+                if (curx < cur_line->len - 1) curx++;
                 break;
 
             case ':':
@@ -202,6 +220,22 @@ void control_mode() {
                 break;
 
             case 'i':
+                insert_mode();
+                break;
+
+            case 'I':
+                curx = 0;   // TODO: determine the non-space start
+                insert_mode();
+                break;
+
+            case 'a':
+                if (cur_line->len > 0) 
+                    curx++;
+                insert_mode();
+                break;
+
+            case 'A':
+                curx = cur_line->len;
                 insert_mode();
                 break;
 
@@ -214,9 +248,17 @@ void control_mode() {
                 break;
 
             case 'O':
+                insertln();
+                move(cury, curx = 0);
+                refresh();
+                update_status();
+                add_line_prev(cur_line);
+                cur_line = cur_line->prev;
+                insert_mode();
                 break;
 
             default:
+                // TODO: warn the user for unkown command
                 break;
         }
     }
@@ -273,6 +315,7 @@ void command_mode() {
 }
 
 void update_status() {
+    assert(cur_line != NULL);
     werase(status_win);
     mvwprintw(status_win, 0, 0, "%s", cur_file_name);
     if (cur_line->content != NULL) {     // For debug
@@ -292,7 +335,7 @@ int save_file(const char *file_name) {
     if (f == NULL)
         return -1;
     line_t *iter;
-    for (iter = head; iter->next != NULL; iter = iter->next) {
+    for (iter = head->next; iter != NULL; iter = iter->next) {
         if (iter->content != NULL)
             fprintf(f, "%s\n", iter->content);
         else
@@ -311,6 +354,7 @@ int read_file(const char *file_name) {
         return -1;
 
     strncpy(cur_file_name, file_name, FILENAME_MAX);
+    cur_line = head;
     char buf[MAXLEN];       // FIXME: use a dynamic way to adapt to variable-length row
     while (fgets(buf, MAXLEN, f)) {
         int i = strlen(buf);
@@ -320,11 +364,10 @@ int read_file(const char *file_name) {
                 break;
             }
         }
-        add_string(cur_line, 0, buf);
         add_line_next(cur_line);
         cur_line = cur_line->next;
+        add_string(cur_line, 0, buf);
     }
-    cur_line = head;
     return 0;
 }
 
@@ -334,7 +377,7 @@ void print_file() {
     cury = 0;
     move(cury, curx);
     refresh();
-    for (iter = head; iter->next != NULL; iter = iter->next) {
+    for (iter = head->next; iter != NULL; iter = iter->next) {
         if (iter->content != NULL)
             printw("%s", iter->content);
         cury++;
