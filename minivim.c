@@ -1,4 +1,4 @@
-// TODO: how to scroll horizontally
+// TODO: how to scroll horizontally and vertically
 //       support cut/copy/paste
 //       catch Ctrl-C
 #include "minivim.h"
@@ -137,8 +137,12 @@ void insert_mode() {
                     curx--;
                     mvdelch(cury, curx);
                     del_char(cur_line, curx);
-                } else {    // TODO: go to the end of the previous line
-
+                } else {
+                    if (cury) {     // Move up one line
+                        cur_line = cur_line->prev;
+                        cury--;
+                        curx = cur_line->len;
+                    }
                 }
                 break;
 
