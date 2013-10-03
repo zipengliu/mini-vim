@@ -7,6 +7,16 @@
 #include <stdlib.h>
 #include "buffer.h"
 
+#define PRINT_COMMAND_MSG(msg)  \
+    do {                        \
+        werase(cmd_win);        \
+        mvwprintw(cmd_win, 0, 0, "%s", msg);    \
+        wrefresh(cmd_win);      \
+        move(cury, curx);       \
+        refresh();              \
+        return;                 \
+    } while (false)            
+
 // TODO: Althogh the Alt is also 27, ignore it for now
 #define KEY_ESC 27
 #define KEY_DEL 127

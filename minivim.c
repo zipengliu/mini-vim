@@ -8,6 +8,7 @@ int cury, curx;             // the current position of the cursor
 extern int num_lines;       // number of lines: define the available area for the cursor move
 extern line_t *head, *cur_line;
 WINDOW *status_win, *cmd_win;
+char cur_file_name[FILENAME_MAX] = "[No Name]";
 
 
 int main(int argc, const char *argv[])
@@ -225,7 +226,7 @@ void control_mode() {
 void command_mode() {
     int c, ret_val, len = 0;
     char cmd[COMMAND_LENGTH];
-    char filename[FILENAME_MAX];
+    char *action = NULL, *filename;
     werase(cmd_win);
     mvwprintw(cmd_win, 0, 0, ":");
     wrefresh(cmd_win);
@@ -241,31 +242,35 @@ void command_mode() {
             wrefresh(cmd_win);
             cmd[len++] = c;
         }
+        if (len > COMMAND_LENGTH)       // command too long!
+            PRINT_COMMAND_MSG("Command too long!");
     }
     cmd[len] = 0;
 
-    switch(cmd[0]) {
-        case 'w':
-            strncpy(filename, cmd + 2, FILENAME_MAX);
-            ret_val = save_file(filename);
-            if (ret_val < 0) {      // Fail to write
-                mvwprintw(cmd_win, 0, 0, "Cannot write to \"%s\"", filename);
-                wrefresh(cmd_win);
-                move(cury, curx);
-                refresh();
-            }
-            break;
-
-        case 'q':
-            break;
-
-        default:
-            break;
-
+    action = strtok(cmd, " ");
+    assert(action != NULL);
+    if (action[0] == 'w') {
+        filename = strtok(NULL, " ");
+        if (filename == NULL) {
+            if (!strcmp(cur_file_name, "[No Name]"))
+                PRINT_COMMAND_MSG("No file name specified!");
+            filename = cur_file_name;
+        }
+        ret_val = save_file(filename);
+        if (ret_val < 0)
+            PRINT_COMMAND_MSG("Cannot write to this file!");
+        strncpy(cur_file_name, filename, FILENAME_MAX);
     }
 
-    // Clear the command bar
-    werase(cmd_win);
+    if (action[0] == 'q' || action[1] == 'q') {
+        if (strchr(action, '!') != NULL) {      // Force exit
+            destroy_screens(0);
+            exit(0);
+        } else {
+            // TODO: how to decide whether the file is modified?
+        }
+
+    }
 }
 
 void update_status(const char *filename) {
