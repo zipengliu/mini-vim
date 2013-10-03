@@ -23,6 +23,7 @@ typedef struct line_t {     // buffer structure: double-linked list
     struct line_t *prev, *next;
 } line_t;
 
+void initialize_buffer();
 void add_char(line_t *line, int pos, int c);
 void del_char(line_t *line, int pos);
 

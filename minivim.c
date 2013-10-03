@@ -16,6 +16,7 @@ int main(int argc, const char *argv[])
     const char USAGE[] = "USAGE: minivim [file]";
 
     if (argc == 1) {                    // Create a new file
+        initialize_buffer();
         initialize_screens();
         control_mode();
         destroy_screens(0);
@@ -23,8 +24,13 @@ int main(int argc, const char *argv[])
         if (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")) {   // print help
             printf("%s\n", USAGE);
         } else {                        // Edit the file specified
+            initialize_buffer();
+            if (read_file(argv[1]) < 0) {
+                printf("Error opening %s\n", argv[1]);
+                exit(1);
+            }
             initialize_screens();
-            read_file(argv[1]);
+            print_file();
             control_mode();
 
             destroy_screens(0);
@@ -38,13 +44,6 @@ int main(int argc, const char *argv[])
 }
 
 void initialize_screens() {
-    num_lines = 1;
-    head = (line_t*) malloc(sizeof(line_t));
-    head->prev = head->next = NULL;
-    head->start = head->len = head->size = 0;
-    head->content = NULL;           // Must be initialized!
-    cur_line = head;
-
     initscr();
     cbreak();
     nonl();     // FIXME: the enter keystroke
@@ -58,7 +57,7 @@ void initialize_screens() {
     // Create status bar and command bar
     status_win = newwin(1, COLS, LINES - 2, 0);
     wrefresh(status_win);
-    update_status("[No Name]");
+    update_status();
     /* box(status_win, 0, 0); */
     /* wrefresh(status_win); */
     cmd_win = newwin(1, COLS, LINES - 1, 0);
@@ -80,7 +79,7 @@ void insert_mode() {
     wprintw(cmd_win, "-- INSERT --");
     wrefresh(cmd_win);
     while (1) {
-        update_status(NULL);
+        update_status();
         move(cury, curx);
         refresh();
         c = getch();
@@ -163,7 +162,7 @@ void control_mode() {
     while (1) {
         move(cury, curx);
         refresh();
-        update_status(NULL);
+        update_status();
         c = getch();
         switch (c) {
             case 'h':
@@ -273,11 +272,9 @@ void command_mode() {
     }
 }
 
-void update_status(const char *filename) {
-    if (filename != NULL) {
-        werase(status_win);
-        mvwprintw(status_win, 0, 0, "%s", filename);
-    }
+void update_status() {
+    werase(status_win);
+    mvwprintw(status_win, 0, 0, "%s", cur_file_name);
     if (cur_line->content != NULL) {     // For debug
         werase(cmd_win);
         mvwprintw(cmd_win, 0, (COLS - cur_line->len) / 2, "%s", cur_line->content);
@@ -295,7 +292,7 @@ int save_file(const char *file_name) {
     if (f == NULL)
         return -1;
     line_t *iter;
-    for (iter = head; iter != NULL; iter = iter->next) {
+    for (iter = head; iter->next != NULL; iter = iter->next) {
         if (iter->content != NULL)
             fprintf(f, "%s\n", iter->content);
         else
@@ -303,10 +300,47 @@ int save_file(const char *file_name) {
     }
     fclose(f);
 
-    update_status(file_name);
+    strncpy(cur_file_name, file_name, FILENAME_MAX);
+    update_status();
     return 0;
 }
 
 int read_file(const char *file_name) {
+    FILE *f = fopen(file_name, "r");
+    if (f == NULL)
+        return -1;
+
+    strncpy(cur_file_name, file_name, FILENAME_MAX);
+    char buf[MAXLEN];       // FIXME: use a dynamic way to adapt to variable-length row
+    while (fgets(buf, MAXLEN, f)) {
+        int i = strlen(buf);
+        while (--i >= 0) {               // Get rid of the \n
+            if (buf[i] == '\n') {
+                buf[i] = 0;
+                break;
+            }
+        }
+        add_string(cur_line, 0, buf);
+        add_line_next(cur_line);
+        cur_line = cur_line->next;
+    }
+    cur_line = head;
     return 0;
+}
+
+void print_file() {
+    line_t *iter;
+    werase(stdscr);
+    cury = 0;
+    move(cury, curx);
+    refresh();
+    for (iter = head; iter->next != NULL; iter = iter->next) {
+        if (iter->content != NULL)
+            printw("%s", iter->content);
+        cury++;
+        move(cury, curx);
+        refresh();
+    }
+    move(cury = 0, curx = 0);
+    refresh();
 }

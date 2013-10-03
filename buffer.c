@@ -3,6 +3,15 @@
 int num_lines;
 line_t *head, *cur_line;
 
+void initialize_buffer() {
+    num_lines = 1;
+    head = (line_t*) malloc(sizeof(line_t));
+    head->prev = head->next = NULL;
+    head->start = head->len = head->size = 0;
+    head->content = NULL;           // Must be initialized!
+    cur_line = head;
+}
+
 void add_char(line_t *line, int pos, int c) {
     assert(line != NULL);
     assert(c < 128);        // Make sure that the character is in [0, 127]

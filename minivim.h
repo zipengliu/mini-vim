@@ -25,6 +25,7 @@
 #define POS_INFO (4 * COLS / 5)
 
 #define COMMAND_LENGTH 1000
+#define MAXLEN 128
 
 const int MAX_LENGTH_FILENAME = 1000;
 
@@ -33,7 +34,8 @@ void initialize_screens();
 void destroy_screens(int exit_code);
 int save_file(const char *file_name);     // Save the buffer to the file
 int read_file(const char *file_name);     // Read file into buffer and print the content
-void update_status(const char *filename);     // Update the status bar (filename and cursor position).  If filename is NULL, only position is updated
+void print_file();
+void update_status();     // Update the status bar (filename and cursor position).  If filename is NULL, only position is updated
 
 // Modes functions
 void insert_mode();         // Hit i/I/a/A/o/O to enter in control mode
