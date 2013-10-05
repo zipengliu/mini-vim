@@ -194,7 +194,9 @@ void control_mode() {
                     cury++;
                     cur_line = cur_line->next;
                     assert(cur_line != NULL);
-                    if (curx > cur_line->len - 1)
+                    if (cur_line->len == 0)
+                        curx = 0;
+                    else if (curx > cur_line->len - 1)
                         curx = cur_line->len - 1;
                 }
                 break;
@@ -205,7 +207,9 @@ void control_mode() {
                     cury--;
                     cur_line = cur_line->prev;
                     assert(cur_line != NULL);
-                    if (curx > cur_line->len - 1)
+                    if (cur_line->len == 0)
+                        curx = 0;
+                    else if (curx > cur_line->len - 1)
                         curx = cur_line->len - 1;
                 }
                 break;
