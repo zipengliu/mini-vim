@@ -36,6 +36,7 @@ int save_file(const char *file_name);     // Save the buffer to the file
 int read_file(const char *file_name);     // Read file into buffer and print the content
 void print_file();
 void update_status();     // Update the status bar (filename and cursor position).  If filename is NULL, only position is updated
+int is_number(const char* st);
 
 // Modes functions
 void insert_mode();         // Hit i/I/a/A/o/O to enter in control mode

@@ -66,6 +66,43 @@ void add_line_prev(line_t *line) {
     num_lines++;
 }
 
+int del_lines(int start, int end) {
+    if (start < 1 || start > end || end > num_lines)    // validate the line range
+        return -1;
+    line_t *s, *e;
+    int i;
+    for (i = 0, s = head; i < start; i++)
+        s = s->next;
+    for (i = 0, e = head; i < end; i++)
+        e = e->next;
+    if (s == NULL || e == NULL)
+        return -1;
+    s->prev->next = e->next;
+    if (e->next != NULL) {
+        e->next->prev = s->prev;
+        cur_line = e->next;
+    } else
+        cur_line = s->prev;
+
+    for (; s != e; s = s->next)         // Free memory
+        free(s);
+    free(e);
+
+    if (head->next == NULL) {           // All lines are deleted, need to do some amending work: re-adding a node for the first line
+        line_t *tmp = (line_t*) malloc(sizeof(line_t));
+        tmp->start = tmp->len = tmp->size = 0;
+        head->next = tmp;
+        tmp->prev = head;
+        tmp->content = NULL;
+        tmp->next = NULL;
+    }
+
+    num_lines -= end - start + 1;
+    if (num_lines == 0)
+        num_lines = 1;
+    return 0;
+}
+
 void add_string(line_t *line, int pos, char *str) {
     assert(line != NULL);
     if (str == NULL) return;

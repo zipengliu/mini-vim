@@ -164,6 +164,8 @@ void insert_mode() {
 
 void control_mode() {
     int c;
+    int val = 1, input_number = 0;        // number of lines (characters) for cursor movement
+    int i;
 
     if (head->next == NULL) {
         line_t *tmp = (line_t*) malloc(sizeof(line_t));
@@ -184,39 +186,58 @@ void control_mode() {
             case 'h':
             case KEY_LEFT:
             case KEY_DEL:
-                if (curx > 0) curx--;
+                if (curx - val + 1> 0)
+                    curx -= val;
+                else
+                    curx = 0;
                 break;
 
             case 'j':
             case KEY_DOWN:
             case KEY_ENTER:
-                if (cury < num_lines - 1) {
-                    cury++;
-                    cur_line = cur_line->next;
+                if (cury < num_lines - val) {
+                    cury += val;
+                    for (i = 0; i < val; i++)
+                        cur_line = cur_line->next;
                     assert(cur_line != NULL);
-                    if (cur_line->len == 0)
-                        curx = 0;
-                    else if (curx > cur_line->len - 1)
-                        curx = cur_line->len - 1;
+                } else {
+                    cury = num_lines - 1;
+                    while (cur_line->next != NULL)
+                        cur_line = cur_line->next;
                 }
+                if (cur_line->len == 0)
+                    curx = 0;
+                else if (curx > cur_line->len - 1)
+                    curx = cur_line->len - 1;
                 break;
 
             case 'k':
             case KEY_UP:
-                if (cury > 0) {
-                    cury--;
-                    cur_line = cur_line->prev;
+                if (cury - val + 1 > 0) {
+                    cury -= val;
+                    for (i = 0; i < val; i++)
+                        cur_line = cur_line->prev;
                     assert(cur_line != NULL);
-                    if (cur_line->len == 0)
-                        curx = 0;
-                    else if (curx > cur_line->len - 1)
-                        curx = cur_line->len - 1;
+                } else {
+                    cury = 0;
+                    cur_line = head->next;
                 }
+                if (cur_line->len == 0)
+                    curx = 0;
+                else if (curx > cur_line->len - 1)
+                    curx = cur_line->len - 1;
                 break;
 
             case 'l':
             case KEY_RIGHT:
-                if (curx < cur_line->len - 1) curx++;
+                if (curx < cur_line->len - val)
+                    curx += val;
+                else {
+                    if (cur_line->len == 0)
+                        curx = 0;
+                    else
+                        curx = cur_line->len - 1;
+                }
                 break;
 
             case ':':
@@ -233,7 +254,7 @@ void control_mode() {
                 break;
 
             case 'a':
-                if (cur_line->len > 0) 
+                if (cur_line->len > 0)
                     curx++;
                 insert_mode();
                 break;
@@ -261,15 +282,36 @@ void control_mode() {
                 insert_mode();
                 break;
 
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+                if (!input_number) val = 0;
+                val = val * 10 + c - 48;
+                input_number = 1;
+                break;
+
             default:
                 // TODO: warn the user for unkown command
                 break;
+        }
+        if (c < '0' || c > '9') {
+            val = 1;
+            input_number = 0;
         }
     }
 }
 
 void command_mode() {
     int c, ret_val, len = 0;
+    int taken = 0;          // indicator of whether the command is executed
+    int i;
     char cmd[COMMAND_LENGTH];
     char *action = NULL, *filename;
     werase(cmd_win);
@@ -292,9 +334,10 @@ void command_mode() {
     }
     cmd[len] = 0;
 
-    action = strtok(cmd, " ");
+    action = strtok(cmd, " ,");
     assert(action != NULL);
-    if (action[0] == 'w') {
+    if (action[0] == 'w') {                 // Save file
+        taken = 1;
         filename = strtok(NULL, " ");
         if (filename == NULL) {
             if (!strcmp(cur_file_name, "[No Name]"))
@@ -307,14 +350,45 @@ void command_mode() {
         strncpy(cur_file_name, filename, FILENAME_MAX);
     }
 
-    if (action[0] == 'q' || action[1] == 'q') {
-        if (strchr(action, '!') != NULL) {      // Force exit
+    if (action[0] == 'q' || action[1] == 'q') {     // Exit minivim
+        taken = 1;
+        if (strchr(action, '!') != NULL || action[0] == 'w') {      // Force exit
             destroy_screens(0);
             exit(0);
         } else {
             // TODO: how to decide whether the file is modified?
+            destroy_screens(0);
+            exit(0);
         }
+    }
 
+    if (is_number(action)) {
+        int start_line = atoi(action);
+        action = strtok(NULL, " ,");
+        if (is_number(action)) {
+            int end_line = atoi(action);
+            action = strtok(NULL, " ,");
+            if (action[0] == 'd') {
+                taken = 1;
+                ret_val = del_lines(start_line, end_line);  // Clear the buffer of the lines affected
+                if (ret_val < 0)
+                    PRINT_COMMAND_MSG("Invalid line range!");
+                else {                                      // Clear the lines on screen
+                    len = end_line - start_line + 1;
+                    move(start_line - 1, 0);
+                    for (i = 0; i < len; i++)
+                        deleteln();
+                    cury = end_line - len;
+                    curx = 0;
+                    move(cury, curx);
+                    refresh();
+                }
+            }
+        }
+    }
+
+    if (!taken) {
+        PRINT_COMMAND_MSG("Command not found!");
     }
 }
 
@@ -323,8 +397,9 @@ void update_status() {
     werase(status_win);
     mvwprintw(status_win, 0, 0, "%s", cur_file_name);
     if (cur_line->content != NULL) {     // For debug
-        werase(cmd_win);
-        mvwprintw(cmd_win, 0, (COLS - cur_line->len) / 2, "%s", cur_line->content);
+        wmove(cmd_win, 0, COLS / 2);
+        wclrtoeol(cmd_win);
+        mvwprintw(cmd_win, 0, COLS / 2, "%s", cur_line->content);
         wrefresh(cmd_win);
     }
     mvwprintw(status_win, 0, POS_INFO, "%*d%%", POS_WIDTH - 2, (cury + 1) * 100 / num_lines);
@@ -358,6 +433,7 @@ int read_file(const char *file_name) {
         return -1;
 
     strncpy(cur_file_name, file_name, FILENAME_MAX);
+    num_lines = 0;
     cur_line = head;
     char buf[MAXLEN];       // FIXME: use a dynamic way to adapt to variable-length row
     while (fgets(buf, MAXLEN, f)) {
@@ -390,4 +466,15 @@ void print_file() {
     }
     move(cury = 0, curx = 0);
     refresh();
+}
+
+int is_number(const char *st) {
+    if (st == NULL || strlen(st) == 0)
+        return 0;
+    int i;
+    for (i = 0; i < strlen(st); i++) {
+        if (st[i] < '0' || st[i] > '9')
+            return 0;
+    }
+    return 1;
 }

@@ -29,6 +29,7 @@ void del_char(line_t *line, int pos);
 
 void add_line_next(line_t *line);
 void add_line_prev(line_t *line);
+int del_lines(int start, int end);
 
 void add_string(line_t *line, int pos, char *str);
 void del_string_to_eol(line_t *line, int pos);
