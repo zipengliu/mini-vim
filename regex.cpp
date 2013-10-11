@@ -77,7 +77,7 @@ struct _DFANODE
 		for(int i = 0 ; i < CHARSET ; i++)
 			next[i] = null;
     }
-    
+
 };
 
 int DFANODE::idcount = 0;
@@ -177,7 +177,7 @@ int gen_tree(const char * word , int len , int pos )
 				break;
 
 
-			default:escape:
+			default:
 				if (natom > 1)
 				{
 					pnode = new RENODE;
@@ -415,7 +415,7 @@ bool* gen_eplosure(vector<RFANODE*> & rfans)
     {
         list[i] = false;
     }
-	for (int i = 0 ; i < rfans.size() ; i++)
+	for (int i = 0 ; (unsigned)i < rfans.size() ; i++)
     {
 		RFANODE* p = rfans[i];
         list[p ->id] = true;
@@ -492,16 +492,16 @@ DFANODE * gen_dfa_node(vector<RFANODE*> & rfans)
         return dfan;
 
     dfan = new DFANODE(list);
-	
+
     vector<char> cset = get_next_chars(rfans);
     vector<RFANODE*> rfan_new;
     for (vector<char>::iterator it = cset.begin(); it != cset.end() ; it++)
     {
         rfan_new = gen_shift(rfans,*it);
-        dfan ->next[(*it)] = gen_dfa_node(rfan_new);
+        dfan ->next[(int)(*it)] = gen_dfa_node(rfan_new);
     }
 	return dfan;
-	
+
 }
 
 void dfa_output(DFA* pdfa)
@@ -556,9 +556,9 @@ int find_match_in_line(DFA* pdfa , char* c , int len , int line , REGEX_RESULT* 
 			isfound = true;
 			matchsuccesslen = matchlen;
 		}
-		if (pnode ->next[c[p]] != null)
+		if (pnode ->next[(int)(c[p])] != null)
 		{
-			pnode = pnode ->next[c[p]];
+			pnode = pnode ->next[(int)(c[p])];
 			matchlen ++;
 			p++;
 		}
@@ -636,7 +636,7 @@ DFA* gen_dfa(char * regex , int len)
 	return pdfa;
 }
 
-void regex_release(DFA* prfa)
+void regex_release(DFA* pdfa)
 {
 	while(!rfanodes.empty())
     {
@@ -661,6 +661,15 @@ void regex_release(DFA* prfa)
 		rfanodes.pop();
 		delete p;
     }
-	if (prfa != null)
-		delete prfa;
+	if (pdfa != null)
+		delete pdfa;
+}
+
+
+int regex_match(line_t* head ,char * regex , int len , REGEX_RESULT* &r)
+{
+    DFA* pdfa = gen_dfa(regex ,len);
+    int result = regex_match(pdfa , head , r);
+    regex_release(pdfa);
+    return result;
 }

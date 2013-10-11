@@ -24,12 +24,6 @@ typedef struct _DFA		DFA;
 typedef struct _REGEX_RESULT REGEX_RESULT;
 
 
-
-enum NODE_TYPE;
-enum RFA_NODE_TYPE;
-enum DFA_NODE_TYPE;
-enum DFA_TYPE;
-
 int gen_tree(const char * word , int len , int pos );
 
 RFA * rfa_patch(RFA *p1 , RFA *p2);
@@ -57,5 +51,8 @@ int find_match_in_line(DFA* pdfa , char* c , int len , int line , REGEX_RESULT* 
 //interface
 DFA* gen_dfa(char * regex , int len);
 int regex_match(DFA* pdfa , line_t* head , REGEX_RESULT* &r);
-void regex_release(DFA* prfa);
+void regex_release(DFA* pdfa);
+
+
+int regex_match(line_t* head ,char * regex , int len , REGEX_RESULT* &r);
 
