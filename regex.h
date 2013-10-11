@@ -1,3 +1,7 @@
+#ifndef __MINIVIM_REGEX__
+#define __MINIVIM_REGEX__ 1
+
+
 #define null NULL
 #define CHARSET 256
 #include "buffer.h"
@@ -48,11 +52,13 @@ int find_match_in_line(DFA* pdfa , char* c , int len , int line , REGEX_RESULT* 
 
 
 
-//interface
+
 DFA* gen_dfa(char * regex , int len);
 int regex_match(DFA* pdfa , line_t* head , REGEX_RESULT* &r);
 void regex_release(DFA* pdfa);
 
+//interface
+int regex_match(line_t* head ,char * regex , int len , REGEX_RESULT* &r); // return value is num of matched , specially -1 for illegal regex
 
-int regex_match(line_t* head ,char * regex , int len , REGEX_RESULT* &r);
 
+#endif

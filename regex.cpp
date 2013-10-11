@@ -365,6 +365,7 @@ RFA * gen_rfa()
 	if (rfas.size() != 1)
 		return null;
 	prfa = rfas.top();
+	rfas.pop();
 	RFANODE* pnode = new RFANODE(RFA_END,null,null);
 	for (set<RFANODE *>::iterator it = prfa ->pends.begin(); it != prfa ->pends.end() ; it++)
     {
@@ -625,7 +626,11 @@ DFA* gen_dfa(char * regex , int len)
 
     RFA * prfa = gen_rfa();
 	if (prfa == null)
+    {
+        while(!rfas.empty())
+            rfas.pop();
 		return null;
+    }
     //rfanodes_output(prfa);
 
     DFA * pdfa = gen_dfa(prfa);
@@ -642,7 +647,8 @@ void regex_release(DFA* pdfa)
     {
 		RFANODE* p = rfanodes.front();
 		rfanodes.pop();
-		delete p;
+		if (p != null)
+            delete p;
     }
 	for (set<DFANODE *>::iterator it = dfanodes.begin(); it != dfanodes.end() ; it++)
     {
@@ -653,13 +659,8 @@ void regex_release(DFA* pdfa)
     {
 		RENODE* p = renodes.front();
 		rfanodes.pop();
-		delete p;
-    }
-	while(!rfas.empty())
-    {
-		RFA* p = rfas.top();
-		rfanodes.pop();
-		delete p;
+		if (p != null)
+            delete p;
     }
 	if (pdfa != null)
 		delete pdfa;
@@ -669,7 +670,30 @@ void regex_release(DFA* pdfa)
 int regex_match(line_t* head ,char * regex , int len , REGEX_RESULT* &r)
 {
     DFA* pdfa = gen_dfa(regex ,len);
-    int result = regex_match(pdfa , head , r);
+    int result = -1;
+    if (pdfa != null)
+        result = regex_match(pdfa , head , r);
     regex_release(pdfa);
     return result;
 }
+
+// test block
+/*
+int main()
+{
+
+    char c[6] = {'A','B','|','A','C','\0'};
+    char c2[7]  = {'A','B','A','A','A','C'};
+
+    line_t * h = new line_t();
+    line_t * h2 = new line_t();
+    h2 ->content = c2;
+    h2 ->len = 6;
+    h ->next = h2;
+    REGEX_RESULT* r = null;
+
+    regex_match(h,c,5,r);
+    cout << r ->next ->start << r ->next ->next ->start;
+
+}
+*/
