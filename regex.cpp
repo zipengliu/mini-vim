@@ -6,10 +6,7 @@ struct _RFA;
 struct _DFANODE;
 struct _DFA;
 
-enum NODE_TYPE{CHAR,OP};
-enum RFA_NODE_TYPE{EPSILON = -3,SPLIT = -2,RFA_END = -1};
-enum DFA_NODE_TYPE{DFA_DEFAULT = 0,DFA_END = -1};
-enum DFA_TYPE{DFA_NORMAL = 1,DFA_ABNORMAL = -1};
+
 
 queue<_RENODE*> renodes = queue<_RENODE*>();
 stack<_RFA*> rfas = stack<_RFA*>();
@@ -17,90 +14,56 @@ queue<_RFANODE*> rfanodes = queue<_RFANODE *>();
 set<_DFANODE*> dfanodes = set<_DFANODE*>();
 
 
-struct _RENODE
+
+
+
+_RFANODE::_RFANODE(int outc,_RFANODE* out1,_RFANODE* out2)
 {
-    NODE_TYPE type;
-    char content;
-};
-
-struct _RFANODE
-{
-    static int idcount;
-    int id;
-    int outc;
-    _RFANODE* out1;
-    _RFANODE* out2;
-
-    _RFANODE(int outc,_RFANODE* out1,_RFANODE* out2 = null)
-    {
-        id = idcount++;
-        this ->outc = outc;
-        this ->out1 = out1;
-        this ->out2 = out2;
-        rfanodes.push(this);
-    }
-};
-
+    id = idcount++;
+    this ->outc = outc;
+    this ->out1 = out1;
+    this ->out2 = out2;
+    rfanodes.push(this);
+}
 int RFANODE::idcount = 0;
 
 
 
-struct _RFA
+
+_RFA::_RFA(RFANODE * pstart)
 {
-    RFANODE * pstart;
-    set<RFANODE *> pends;
-    _RFA(RFANODE * pstart)
-    {
-		pends = set<RFANODE *>();
-        this ->pstart = pstart;
+    pends = set<RFANODE *>();
+    this ->pstart = pstart;
 
-    }
-};
+}
 
 
-struct _DFANODE
+
+
+_DFANODE::_DFANODE(bool *list)
 {
-    static int idcount;
-    int id;
-    _DFANODE* next[CHARSET];
-    bool *list;
-	DFA_NODE_TYPE type;
-    _DFANODE(bool *list)
-    {
-        id = idcount++;
-        this ->list = list;
-		if (list[RFANODE::idcount+1])
-			type = DFA_END;
-		else
-			type = DFA_DEFAULT;
-		dfanodes.insert(this);
-		for(int i = 0 ; i < CHARSET ; i++)
-			next[i] = null;
-    }
-
-};
-
+    id = idcount++;
+    this ->list = list;
+    if (list[RFANODE::idcount+1])
+        type = DFA_END;
+    else
+        type = DFA_DEFAULT;
+    dfanodes.insert(this);
+    for(int i = 0 ; i < CHARSET ; i++)
+        next[i] = null;
+}
 int DFANODE::idcount = 0;
 
-struct _DFA
-{
-    DFANODE* pstart;
-};
 
 
-struct _REGEX_RESULT
+_REGEX_RESULT::_REGEX_RESULT(int line ,int start,int len, _REGEX_RESULT* prev , _REGEX_RESULT* next)
 {
-	int line, start , len;
-	struct _REGEX_RESULT *prev , *next;
-	_REGEX_RESULT(int line ,int start,int len, _REGEX_RESULT* prev , _REGEX_RESULT* next)
-	{
-		this ->line = line;
-		this ->start = start;
-		this ->len = len;
-		this ->prev = prev;
-		this ->next = next;
-	}
-};
+    this ->line = line;
+    this ->start = start;
+    this ->len = len;
+    this ->prev = prev;
+    this ->next = next;
+}
 
 
 

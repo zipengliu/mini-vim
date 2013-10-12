@@ -12,20 +12,62 @@
 #include<set>
 using namespace std;
 
+enum NODE_TYPE{CHAR,OP};
+enum RFA_NODE_TYPE{EPSILON = -3,SPLIT = -2,RFA_END = -1};
+enum DFA_NODE_TYPE{DFA_DEFAULT = 0,DFA_END = -1};
+enum DFA_TYPE{DFA_NORMAL = 1,DFA_ABNORMAL = -1};
 
-struct _RENODE;
-struct _RFANODE;
-struct _RFA;
-struct _DFANODE;
-struct _DFA;
-struct _REGEX_RESULT;
 
-typedef struct _RENODE	RENODE;
-typedef struct _RFANODE RFANODE;
-typedef struct _RFA		RFA;
-typedef struct _DFANODE DFANODE;
-typedef struct _DFA		DFA;
-typedef struct _REGEX_RESULT REGEX_RESULT;
+
+typedef struct _RENODE
+{
+    NODE_TYPE type;
+    char content;
+}RENODE;
+
+typedef struct _RFANODE
+{
+    static int idcount;
+    int id;
+    int outc;
+    _RFANODE* out1;
+    _RFANODE* out2;
+
+    _RFANODE(int outc,_RFANODE* out1,_RFANODE* out2 = null);
+
+}RFANODE;
+typedef struct _RFA
+{
+    RFANODE * pstart;
+    set<RFANODE *> pends;
+    _RFA(RFANODE * pstart);
+}RFA;
+
+typedef struct _DFANODE
+{
+    static int idcount;
+    int id;
+    _DFANODE* next[CHARSET];
+    bool *list;
+	DFA_NODE_TYPE type;
+    _DFANODE(bool *list);
+
+}DFANODE;
+
+typedef struct _DFA
+{
+    DFANODE* pstart;
+}DFA;
+
+
+typedef struct _REGEX_RESULT
+{
+	int line, start , len;
+	struct _REGEX_RESULT *prev , *next;
+	_REGEX_RESULT(int line ,int start,int len, _REGEX_RESULT* prev , _REGEX_RESULT* next);
+}REGEX_RESULT;
+
+
 
 
 int gen_tree(const char * word , int len , int pos );
