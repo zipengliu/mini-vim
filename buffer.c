@@ -131,7 +131,7 @@ void alloc_chunk(line_t *line, int len) {
     int new_size = ROUNDUP(len, CHUNK_SIZE);
     if (new_size > line->size) {
         line->size = new_size;
-        line->content = realloc(line->content, line->size * sizeof(char));
+        line->content = (char *) realloc(line->content, line->size * sizeof(char));
     }
 }
 
@@ -140,5 +140,5 @@ void del_chunk(line_t *line) {
 
     line->size = ROUNDUP(line->len, CHUNK_SIZE);
     if (line->len < line->size - CHUNK_SIZE)    // To avoid reallocating memory frequently, leave one chunk for future use
-        line->content = realloc(line->content, line->size * sizeof(char));
+        line->content = (char *) realloc(line->content, line->size * sizeof(char));
 }

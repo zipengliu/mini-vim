@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "buffer.h"
+#include "regex.h"
 
 #define PRINT_COMMAND_MSG(msg)  \
     do {                        \
@@ -14,8 +15,7 @@
         wrefresh(cmd_win);      \
         move(cury, curx);       \
         refresh();              \
-        return;                 \
-    } while (false)            
+    } while (false)
 
 // TODO: Althogh the Alt is also 27, ignore it for now
 #define KEY_ESC 27
@@ -37,10 +37,14 @@ int read_file(const char *file_name);     // Read file into buffer and print the
 void print_file();
 void update_status();     // Update the status bar (filename and cursor position).  If filename is NULL, only position is updated
 int is_number(const char* st);
+int input_command(char *cmd);
+void goto_next_match();
+void goto_prev_match();
 
 // Modes functions
 void insert_mode();         // Hit i/I/a/A/o/O to enter in control mode
 void control_mode();        // Hit escape to enter or return from command mode
 void command_mode();        // Hit colon to enter in control mode
+void search_mode();
 
 #endif

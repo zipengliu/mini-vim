@@ -1,14 +1,14 @@
 // TODO: how to scroll horizontally and vertically
-//       support cut/copy/paste
-//       catch Ctrl-C
+//       how to catch Ctrl-d, etc
 #include "minivim.h"
 
 // Global varialbles
 int cury, curx;             // the current position of the cursor
 extern int num_lines;       // number of lines: define the available area for the cursor move
-extern line_t *head, *cur_line;
-WINDOW *status_win, *cmd_win;
-char cur_file_name[FILENAME_MAX] = "[No Name]";
+extern line_t *head, *cur_line;     // buffer
+WINDOW *status_win, *cmd_win;       // windows to show status and command
+char cur_file_name[FILENAME_MAX] = "[No Name]";         // current file name
+REGEX_RESULT *search_head = null, *search_cur = null;   // search result
 
 
 int main(int argc, const char *argv[])
@@ -43,12 +43,15 @@ int main(int argc, const char *argv[])
     return 0;
 }
 
+/* 函数功能描述：初始化屏幕
+ */
 void initialize_screens() {
     initscr();
     cbreak();
     nonl();     // FIXME: the enter keystroke
     noecho();
     scrollok(stdscr, TRUE);
+    setscrreg(0, LINES - 2);
     idlok(stdscr, TRUE);
     keypad(stdscr, TRUE);
     wresize(stdscr, LINES - 2, COLS);   // Leave two rows for status and command
@@ -64,6 +67,9 @@ void initialize_screens() {
     wrefresh(cmd_win);
 }
 
+/* 函数功能描述：销毁屏幕
+ * 参数：exit_code 退出代码号
+ */
 void destroy_screens(int exit_code) {
     delwin(status_win);
     delwin(cmd_win);
@@ -71,6 +77,8 @@ void destroy_screens(int exit_code) {
     exit(exit_code);
 }
 
+/* 函数功能描述：进入插入模式，可处理字符输入、删除，光标上下移动，换行
+ */
 void insert_mode() {
     int c, old_curx;
     char *rem_str = NULL;   // string to the right of the cursor
@@ -162,6 +170,8 @@ void insert_mode() {
     wrefresh(cmd_win);
 }
 
+/* 函数功能描述：进入控制模式，根据输入的命令分发给各个模式，处理光标移动
+ */
 void control_mode() {
     int c;
     int val = 1, input_number = 0;        // number of lines (characters) for cursor movement
@@ -244,6 +254,18 @@ void control_mode() {
                 command_mode();
                 break;
 
+            case '/':
+                search_mode();
+                break;
+
+            case 'n':
+                goto_next_match();
+                break;
+
+            case 'N':
+                goto_prev_match();
+                break;
+
             case 'i':
                 insert_mode();
                 break;
@@ -308,15 +330,12 @@ void control_mode() {
     }
 }
 
-void command_mode() {
-    int c, ret_val, len = 0;
-    int taken = 0;          // indicator of whether the command is executed
-    int i;
-    char cmd[COMMAND_LENGTH];
-    char *action = NULL, *filename;
-    werase(cmd_win);
-    mvwprintw(cmd_win, 0, 0, ":");
-    wrefresh(cmd_win);
+/* 函数功能描述：进入命令模式或搜索模式后，通过该函数获取命令或模式串
+ * 参数：cmd 用于存储输入的字符串
+ * 返回值：-1 输入失败，字符串超过允许长度；>0 字符串长度
+ */
+int input_command(char *cmd) {
+    int c, len = 0;
     while (c = getch(), c != KEY_ENTER && c != 10 && c != 13) {
         if (c == KEY_DEL) {
             if (getcurx(cmd_win) > 1) {
@@ -329,10 +348,28 @@ void command_mode() {
             wrefresh(cmd_win);
             cmd[len++] = c;
         }
-        if (len > COMMAND_LENGTH)       // command too long!
+        if (len > COMMAND_LENGTH) {
             PRINT_COMMAND_MSG("Command too long!");
+            return -1;
+        }
     }
     cmd[len] = 0;
+    return len;
+}
+
+/* 函数功能描述：进入命令模式，处理输入的各个合法命令
+ */
+void command_mode() {
+    int ret_val, len = 0;
+    int taken = 0;          // indicator of whether the command is executed
+    int i;
+    char cmd[COMMAND_LENGTH];
+    char *action = NULL, *filename;
+    werase(cmd_win);
+    mvwprintw(cmd_win, 0, 0, ":");
+    wrefresh(cmd_win);
+    len = input_command(cmd);
+    if (len < 0) return;
 
     action = strtok(cmd, " ,");
     assert(action != NULL);
@@ -340,13 +377,17 @@ void command_mode() {
         taken = 1;
         filename = strtok(NULL, " ");
         if (filename == NULL) {
-            if (!strcmp(cur_file_name, "[No Name]"))
+            if (!strcmp(cur_file_name, "[No Name]")) {
                 PRINT_COMMAND_MSG("No file name specified!");
+                return;
+            }
             filename = cur_file_name;
         }
         ret_val = save_file(filename);
-        if (ret_val < 0)
+        if (ret_val < 0) {
             PRINT_COMMAND_MSG("Cannot write to this file!");
+            return;
+        }
         strncpy(cur_file_name, filename, FILENAME_MAX);
     }
 
@@ -371,9 +412,10 @@ void command_mode() {
             if (action[0] == 'd') {
                 taken = 1;
                 ret_val = del_lines(start_line, end_line);  // Clear the buffer of the lines affected
-                if (ret_val < 0)
+                if (ret_val < 0) {
                     PRINT_COMMAND_MSG("Invalid line range!");
-                else {                                      // Clear the lines on screen
+                    return;
+                } else {                                      // Clear the lines on screen
                     len = end_line - start_line + 1;
                     move(start_line - 1, 0);
                     for (i = 0; i < len; i++)
@@ -389,9 +431,38 @@ void command_mode() {
 
     if (!taken) {
         PRINT_COMMAND_MSG("Command not found!");
+        return;
     }
 }
 
+/* 函数功能描述：进入搜索模式，调用正则表达式匹配并定位到第一个匹配
+ */
+void search_mode() {
+    int ret_val, len = 0;
+    char regex[COMMAND_LENGTH];
+    werase(cmd_win);
+    mvwprintw(cmd_win, 0, 0, "/");
+    wrefresh(cmd_win);
+    len = input_command(regex);
+
+    ret_val = regex_match(head, regex, len, search_head);
+    if (ret_val == -1) {
+        PRINT_COMMAND_MSG("Invalid regular expression!");
+        return;
+    } else if (ret_val == 0){
+        PRINT_COMMAND_MSG("No match found!");
+        return;
+    } else {
+        assert(search_head != null);
+        assert(search_head->next != null);
+        search_cur = search_head->next;
+        cury = search_cur->line;
+        curx = search_cur->start;
+    }
+}
+
+/* 函数功能描述：更新状态窗口的信息（行列信息，文件名，调试信息等）
+ */
 void update_status() {
     assert(cur_line != NULL);
     werase(status_win);
@@ -409,6 +480,10 @@ void update_status() {
     refresh();
 }
 
+/* 函数功能描述：保存文件
+ * 参数：file_name 文件名
+ * 返回值：-1 写文件失败；0 写文件成功
+ */
 int save_file(const char *file_name) {
     FILE *f = fopen(file_name, "w");
     if (f == NULL)
@@ -427,6 +502,10 @@ int save_file(const char *file_name) {
     return 0;
 }
 
+/* 函数功能描述：读取文件并保存到buffer中
+ * 参数：file_name 文件名
+ * 返回值：-1 读文件失败；0 读文件成功
+ */
 int read_file(const char *file_name) {
     FILE *f = fopen(file_name, "r");
     if (f == NULL)
@@ -451,8 +530,11 @@ int read_file(const char *file_name) {
     return 0;
 }
 
+/* 函数功能描述：把读取到的文件打印到屏幕
+ */
 void print_file() {
     line_t *iter;
+    int ret;
     werase(stdscr);
     cury = 0;
     move(cury, curx);
@@ -460,14 +542,30 @@ void print_file() {
     for (iter = head->next; iter != NULL; iter = iter->next) {
         if (iter->content != NULL)
             printw("%s", iter->content);
-        cury++;
-        move(cury, curx);
+        /* cury++; */
+        wscrl(stdscr, 1);
+        ret = move(cury, curx);
+        assert(ret == OK);
         refresh();
     }
-    move(cury = 0, curx = 0);
+    /* move(cury = 0, curx = 0); */
+    ret = wscrl(stdscr, -num_lines);
+    assert(ret == OK);
     refresh();
+
+    ret = wscrl(stdscr, 20);
+    assert(ret == OK);
+    refresh();
+
+    curx = getcurx(stdscr);
+    cury = getcury(stdscr);
+    update_status();
 }
 
+/* 函数功能描述：判断一个字符串是否是数字
+ * 参数：st 需要判断的字符串
+ * 返回：0 不是数字；1 是数字
+ */
 int is_number(const char *st) {
     if (st == NULL || strlen(st) == 0)
         return 0;
@@ -477,4 +575,34 @@ int is_number(const char *st) {
             return 0;
     }
     return 1;
+}
+
+/* 函数功能描述：光标移动到下一个匹配处
+ */
+void goto_next_match() {
+    if (search_head == null || search_head->next == null) {
+        PRINT_COMMAND_MSG("No match found!");
+        return;
+    }
+    if (search_cur->next == null)     // Last match
+        search_cur = search_head->next;
+    else
+        search_cur = search_cur->next;
+    cury = search_cur->line;
+    curx = search_cur->start;
+}
+
+/* 函数功能描述：光标移动到上一个匹配处
+ */
+void goto_prev_match() {
+    if (search_head == null || search_head->next == null) {
+        PRINT_COMMAND_MSG("No match found!");
+        return;
+    }
+    if (search_cur->prev == search_head) {     // First match
+        while (search_cur->next != null) search_cur = search_cur->next;
+    } else
+        search_cur = search_cur->prev;
+    cury = search_cur->line;
+    curx = search_cur->start;
 }
