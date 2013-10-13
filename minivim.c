@@ -1,14 +1,12 @@
-// TODO: how to scroll horizontally and vertically
-//       how to catch Ctrl-d, etc
 #include "minivim.h"
 
 // Global varialbles
 int cury, curx;             // the current position of the cursor
-int topy, boty;
+int topy;                   // the top line number of the current screen
 extern int num_lines;       // number of lines: define the available area for the cursor move
 extern line_t *head, *cur_line;     // buffer
 WINDOW *status_win, *cmd_win;       // windows to show status and command
-WINDOW *buffer_pad;
+WINDOW *buffer_pad;                 // buffer window
 char cur_file_name[FILENAME_MAX] = "[No Name]";         // current file name
 REGEX_RESULT *search_head = null, *search_cur = null;   // search result
 
@@ -51,12 +49,10 @@ int main(int argc, const char *argv[])
 void initialize_screens() {
     initscr();
     cbreak();
-    nonl();     // FIXME: the enter keystroke
+    nonl();
     noecho();
     wresize(stdscr, LINES - 2, COLS);   // Leave two rows for status and command
-    /* idlok(stdscr, TRUE); */
-    /* keypad(stdscr, TRUE); */
-    /* getbegyx(stdscr, cury, curx);       // Set the initial cursor position */
+    keypad(stdscr, TRUE);
 
     // Create a new pad
     buffer_pad = newpad(BUFFER_LINES, COLS);
@@ -138,13 +134,13 @@ void insert_mode() {
             case KEY_ENTER:
                 rem_str = &(cur_line->content[curx]);
                 old_curx = curx;
-                clrtoeol();
-                move(++cury, curx = 0);
-                insertln();
-                refresh();
+                wclrtoeol(buffer_pad);
+                wmove(buffer_pad, ++cury, curx = 0);
+                winsertln(buffer_pad);
+                prefresh(buffer_pad, cury - topy, 0, 0, 0, BUFFER_LINES - 1, COLS);
                 if (rem_str != NULL && strlen(rem_str) > 0) {
-                    printw("%s", rem_str);
-                    refresh();
+                    wprintw(buffer_pad, "%s", rem_str);
+                    prefresh(buffer_pad, cury - topy, 0, 0, 0, BUFFER_LINES - 1, COLS);
                 }
 
                 add_line_next(cur_line);
@@ -155,9 +151,12 @@ void insert_mode() {
 
             case KEY_DEL:
                 if (curx) {
-                    curx--;
-                    mvdelch(cury, curx);
+                    wmove(buffer_pad, cury, --curx);
+                    wdelch(buffer_pad);
                     del_char(cur_line, curx);
+                    /* mvwprintw(buffer_pad, cury - topy, 0, "%s", cur_line->content); */
+                    /* prefresh(buffer_pad, cury - topy, 0, 0, 0, BUFFER_LINES - 1, COLS); */
+
                 } else {
                     if (cury) {     // Move up one line
                         cur_line = cur_line->prev;
@@ -186,7 +185,6 @@ void insert_mode() {
 void control_mode() {
     int c;
     int val = 1, input_number = 0;        // number of lines (characters) for cursor movement
-    cury = curx = 0;
 
     if (head->next == NULL) {
         line_t *tmp = (line_t*) malloc(sizeof(line_t));
@@ -236,11 +234,24 @@ void control_mode() {
                 }
                 break;
 
-            case 'u':
             case 'd':
-            case 'b':
-            case 'f':
+            case CTRL_D:
                 scroll_lines(BUFFER_LINES / 2);
+                break;
+
+            case 'u':
+            case CTRL_U:
+                scroll_lines(-BUFFER_LINES / 2);
+                break;
+
+            case 'f':
+            case CTRL_F:
+                scroll_lines(BUFFER_LINES - 1);
+                break;
+
+            case 'b':
+            case CTRL_B:
+                scroll_lines(-(BUFFER_LINES - 1));
                 break;
 
             case ':':
@@ -460,14 +471,15 @@ void update_status() {
     assert(cur_line != NULL);
     werase(status_win);
     mvwprintw(status_win, 0, 0, "%s", cur_file_name);
-    if (cur_line->content != NULL) {     // For debug
-        wmove(cmd_win, 0, COLS / 2);
-        wclrtoeol(cmd_win);
-        mvwprintw(cmd_win, 0, COLS / 2, "%s", cur_line->content);
-        wrefresh(cmd_win);
-    }
-    mvwprintw(status_win, 0, POS_INFO, "%*d%%", POS_WIDTH - 2, (cury + 1) * 100 / num_lines);
-    mvwprintw(status_win, 0, POS_INFO, "%d, %d", cury+1, curx+1);   // Count from 1 for readability
+    /* if (cur_line->content != NULL) {     // For debug */
+    /*     wmove(cmd_win, 0, COLS / 2); */
+    /*     wclrtoeol(cmd_win); */
+    /*     mvwprintw(cmd_win, 0, COLS / 2, "%s", cur_line->content); */
+    /*     wrefresh(cmd_win); */
+    /* } */
+    int p = (cury + 1) * 100 / num_lines;
+    mvwprintw(status_win, 0, POS_INFO, "%*d%%", POS_WIDTH - 2, p);
+    mvwprintw(status_win, 0, POS_INFO, "%d, %d", cury + 1, curx + 1);   // Count from 1
     wrefresh(status_win);
     wmove(buffer_pad, cury - topy, curx);
     prefresh(buffer_pad, 0, 0, 0, 0, BUFFER_LINES - 1, COLS);
@@ -586,13 +598,17 @@ void goto_prev_match() {
     curx = search_cur->start;
 }
 
+/* 函数功能描述：光更新最顶一行的行号以及重新打印屏幕内的内容
+ * 参数：delta 更新的幅度值
+ */
 void update_topy(int delta) {
     topy += delta;
-    mvwprintw(cmd_win, 0, 0, "update topy to %d", topy);
-    wrefresh(cmd_win);
     print_file(topy);
 }
 
+/* 函数功能描述：向上、下滚动多行
+ * 参数：val 滚动的行数，正数表示向下滚动，负数反之
+ */
 void scroll_lines(int val) {
     int i;
     if (val > 0) {
