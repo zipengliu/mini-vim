@@ -20,6 +20,10 @@
 // TODO: Althogh the Alt is also 27, ignore it for now
 #define KEY_ESC 27
 #define KEY_DEL 127
+#define CTRL_D 4
+#define CTRL_U 21
+#define CTRL_F 6
+#define CTRL_B 2
 
 #define POS_WIDTH (COLS / 5)
 #define POS_INFO (4 * COLS / 5)
