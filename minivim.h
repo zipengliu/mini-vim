@@ -17,7 +17,6 @@
         refresh();              \
     } while (false)
 
-// TODO: Althogh the Alt is also 27, ignore it for now
 #define KEY_ESC 27
 #define KEY_DEL 127
 #define CTRL_D 4

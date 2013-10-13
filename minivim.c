@@ -324,7 +324,6 @@ void control_mode() {
                 break;
 
             default:
-                // TODO: warn the user for unkown command
                 break;
         }
         if (c < '0' || c > '9') {
@@ -401,7 +400,6 @@ void command_mode() {
             destroy_screens(0);
             exit(0);
         } else {
-            // TODO: how to decide whether the file is modified?
             destroy_screens(0);
             exit(0);
         }
@@ -519,7 +517,7 @@ int read_file(const char *file_name) {
     strncpy(cur_file_name, file_name, FILENAME_MAX);
     num_lines = 0;
     cur_line = head;
-    char buf[MAXLEN];       // FIXME: use a dynamic way to adapt to variable-length row
+    char buf[MAXLEN];
     while (fgets(buf, MAXLEN, f)) {
         int i = strlen(buf);
         while (--i >= 0) {               // Get rid of the \n
