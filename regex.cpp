@@ -1,3 +1,16 @@
+    // 我真诚地保证：
+// 我自己独立地完成了整个程序从分析、设计到编码的所有工作。
+// 如果在上述过程中，我遇到了什么困难而求教于人，那么，我将在程序实习报告中
+// 详细地列举我所遇到的问题，以及别人给我的提示。
+// 我的程序里中凡是引用到其他程序或文档之处，
+// 例如教材、课堂笔记、网上的源代码以及其他参考书上的代码段,
+// 我都已经在程序的注释里很清楚地注明了引用的出处。
+// 我从未抄袭过别人的程序，也没有盗用别人的程序，
+// 不管是修改式的抄袭还是原封不动的抄袭。
+    // 我编写这个程序，从来没有想过要去破坏或妨碍其他计算机系统的正常运转。
+    // 兰兆千
+
+
 /*************************************************
 文件名称：   regex.cpp
 项目名称：  mini-vim
@@ -28,7 +41,7 @@ _RFANODE::_RFANODE(int outc,_RFANODE* out1,_RFANODE* out2)
     this ->outc = outc;
     this ->out1 = out1;
     this ->out2 = out2;
-    rfanodes.push(this);
+    rfanodes.push(this);  //放入RFA状态总队列中 , 用于DFA的构造
 }
 
 
@@ -69,6 +82,8 @@ _REGEX_RESULT::_REGEX_RESULT(int line ,int start,int len, _REGEX_RESULT* prev , 
 }
 
 
+
+
 /*************************************************
 函数名称：   gen_tree
 功能：      根据输入的正则表达式，生成后缀表达式
@@ -78,16 +93,21 @@ _REGEX_RESULT::_REGEX_RESULT(int line ,int start,int len, _REGEX_RESULT* prev , 
 *************************************************/
 int gen_tree(const char * word , int len , int pos )
 {
-    int natom = 0 , nalt = 0;
+    int natom = 0 , nalt = 0;  //分别代表本过程中已经存在的原子节点数目和分支数目
+                    //何为原子节点？比如字符A形成的节点就是一个原子节点，但是一旦将A|B识别后
+                    //整体算一个原子节点         它的定义可以参考子树的定义
+                    //识别完毕的中缀表达式可以组成的树的数目
+
+                    //那么分支数目是指所遇到中缀表达式的'|'个数减去现在后缀表达式上已经有的'|'个数
     RENODE *pnode;
 	bool isEscape = false;
     while(pos < len)
     {
-		if (isEscape)
-		{
+		if (isEscape)  //如果上一个是转义字符
+		{               //那么这个字符就是正常的字符
 			isEscape = false;
-			if (natom > 1)
-            {
+			if (natom > 1)   //添加一个字符构成的原子节点，首先要看之前如果有一个原子节点
+            {               //如果有 则用'.'(连接符号)将他们连接起来
                 pnode = new RENODE;
                 pnode ->type = OP;
                 pnode ->content = '.';
@@ -95,22 +115,22 @@ int gen_tree(const char * word , int len , int pos )
                 natom --;
             }
             pnode = new RENODE;
-            pnode ->type = CHAR;
+            pnode ->type = CHAR;   //正常字符
             pnode ->content = word[pos];
             renodes.push(pnode);
             natom++;
 		}
 		else
 		{
-			switch(word[pos])
+			switch(word[pos])  //接收下一个字符
 			{
 			case '\\':
 				isEscape = true;
 				break;
 
-			case '|':
-				while (natom > 1)
-				{
+			case '|':   //分支符号
+				while (natom > 1)   //发现分支符号，怎么办？首先要将之前的节点们连成一个原子节点
+				{                   //也就是构成一棵树，这样才能让他们的父节点是这个分支节点
 					pnode = new RENODE;
 					pnode ->type = OP;
 					pnode ->content = '.';
@@ -118,12 +138,12 @@ int gen_tree(const char * word , int len , int pos )
 					natom -- ;
 				}
 				natom--;
-				nalt ++ ;
+				nalt ++ ;   //分支数加1
 
 				break;
 
 
-			case '(':
+			case '(':   //左括号，递归调用自身
 				//cout << natom << endl;
 				if (natom > 1)
 				{
@@ -133,15 +153,15 @@ int gen_tree(const char * word , int len , int pos )
 					renodes.push(pnode);
 					natom -- ;
 				}
-				pos = gen_tree(word,len,++pos);
-				natom++;
+				pos = gen_tree(word,len,++pos);//递归调用 并且置pos为识别完的地方
+				natom++;    //作为一个原子节点
 				break;
-			case ')':
+			case ')':   //右括号 返回上一级
 				goto out;
 				break;
 
 
-			case '*':case '?':case '+':
+			case '*':case '?':case '+':     //单目运算符
 				pnode = new RENODE;
 				pnode ->type = OP;
 				pnode ->content = word[pos];
@@ -149,7 +169,7 @@ int gen_tree(const char * word , int len , int pos )
 				break;
 
 
-			default:
+			default:        //非运算符  和上面的转义字符的代码相同
 				if (natom > 1)
 				{
 					pnode = new RENODE;
@@ -169,7 +189,9 @@ int gen_tree(const char * word , int len , int pos )
 		}
         pos ++ ;
     }
-    out:
+    out:    //返回过程
+
+    //首先处理剩余的natom和分支数目，整体合成一个树
     for (int i = 0 ; i < natom - 1 ; i++)
     {
         pnode = new RENODE;
@@ -199,16 +221,19 @@ int gen_tree(const char * word , int len , int pos )
 *************************************************/
 RFA * rfa_patch(RFA *p1 , RFA *p2)
 {
+    //p2修改一下保留并返回    p1删除
     for (set<RFANODE *>::iterator it = p1 ->pends.begin(); it != p1 ->pends.end() ; it++)
     {
-        (*it) ->out1 = p2 ->pstart;
+        (*it) ->out1 = p2 ->pstart;     //让第一个RFA的终止状态  均指向第二个的开始状态
 		if ((*it) ->outc == RFA_END )
 			(*it) ->outc = EPSILON;
     }
-    p2 ->pstart = p1 ->pstart;
+    p2 ->pstart = p1 ->pstart;  //整体的开始状态是第一个RFA的开始状态
     delete p1;
     return p2;
 }
+
+
 
 /*************************************************
 函数名称：   rfa_merge
@@ -219,9 +244,11 @@ RFA * rfa_patch(RFA *p1 , RFA *p2)
 *************************************************/
 RFA * rfa_merge(RFA *p1 , RFA *p2)
 {
-    RFANODE* pnode = new RFANODE(SPLIT,p1 ->pstart,p2 ->pstart);
-    RFA* p = new RFA(pnode);
-    pnode = new RFANODE(RFA_END,null,null);
+    RFANODE* pnode = new RFANODE(SPLIT,p1 ->pstart,p2 ->pstart);    //新建一个状态，分支状态分别指向两个RFA开始状态
+    RFA* p = new RFA(pnode);            //把这个分支状态作为开始状态新建一个RFA
+    pnode = new RFANODE(RFA_END,null,null);         //再新建一个终止状态
+
+    //两个RFA的终止状态全都指向新的终止状态
     for (set<RFANODE *>::iterator it = p1 ->pends.begin(); it != p1 ->pends.end() ; it++)
     {
         (*it) ->out1 = pnode;
@@ -234,7 +261,9 @@ RFA * rfa_merge(RFA *p1 , RFA *p2)
 		if ((*it) ->outc == RFA_END )
 			(*it) ->outc = EPSILON;
     }
-    p ->pends.insert(pnode);
+
+
+    p ->pends.insert(pnode);//设置终止状态
     delete p1;delete p2;
     return p;
 }
@@ -251,9 +280,13 @@ RFA * rfa_merge(RFA *p1 , RFA *p2)
 *************************************************/
 RFA * rfa_oneornone(RFA *p1)
 {
-    RFANODE* pnode = new RFANODE(SPLIT,null,p1 ->pstart);
+    RFANODE* pnode = new RFANODE(SPLIT,null,p1 ->pstart);//新建一个分支状态，指向原来的开始状态
+
+
+    //并且本身作为结束和开始状态
     p1 ->pstart = pnode;
     p1 ->pends.insert(pnode);
+
     return p1;
 }
 
@@ -267,8 +300,12 @@ RFA * rfa_oneornone(RFA *p1)
 *************************************************/
 RFA * rfa_anytimes(RFA *p1)
 {
-    RFANODE* pnode = new RFANODE(SPLIT,null,p1 ->pstart);
+    RFANODE* pnode = new RFANODE(SPLIT,null,p1 ->pstart);//新建一个分支状态，指向原来的开始状态
+
+    //作为开始状态和结束状态
     p1 ->pstart = pnode;
+
+    //并且让原来的结束状态全都指向这个开始状态
     for (set<RFANODE *>::iterator it = p1 ->pends.begin(); it != p1 ->pends.end() ; it++)
     {
         (*it) ->out1 = pnode;
@@ -290,13 +327,18 @@ RFA * rfa_anytimes(RFA *p1)
 *************************************************/
 RFA * rfa_morethanonce(RFA * p1)
 {
-    RFANODE* pnode = new RFANODE(SPLIT,null,p1 ->pstart);
+    RFANODE* pnode = new RFANODE(SPLIT,null,p1 ->pstart);//新建一个分支状态，指向原来的开始状态
+
+
+    //原来的终止状态全都指向这个分支状态
     for (set<RFANODE *>::iterator it = p1 ->pends.begin(); it != p1 ->pends.end() ; it++)
     {
         (*it) ->out1 = pnode;
 		if ((*it) ->outc == RFA_END )
 			(*it) ->outc = EPSILON;
     }
+
+    //这个分支状态作为开始状态
     p1 ->pends.clear();
     p1 ->pends.insert(pnode);
     return p1;
@@ -457,10 +499,16 @@ bool* gen_eplosure(vector<RFANODE*> & rfans)
     {
         list[i] = false;
     }
+
+
+    //枚举每个RFA状态
 	for (int i = 0 ; (unsigned)i < rfans.size() ; i++)
     {
 		RFANODE* p = rfans[i];
-        list[p ->id] = true;
+        list[p ->id] = true;    //这个DFA肯定代表这个RFA状态
+
+
+        //只有分支状态和空状态可能有ε转移
 		if(p ->outc == SPLIT || p ->outc == EPSILON)
         {
             if (p ->out1 != null)
@@ -469,7 +517,8 @@ bool* gen_eplosure(vector<RFANODE*> & rfans)
 				rfans.push_back(p ->out2);
         }
 		if (p ->out1 == null)
-			list[RFANODE::idcount + 1] = true;
+			list[RFANODE::idcount + 1] = true;  //list的最后一个元素作为DFA状态是否为终止状态的标志
+			//只要有一个RFA状态是终止状态，那么对应的DFA状态也是终止状态
     }
     return list;
 }
@@ -485,6 +534,8 @@ bool* gen_eplosure(vector<RFANODE*> & rfans)
 vector<RFANODE*> gen_shift(vector<RFANODE*> & rfans,char c)
 {
     vector<RFANODE*> rfans_new = vector<RFANODE*>();
+
+    //枚举每个RFA状态进行转移
     for (vector<RFANODE *>::iterator it = rfans.begin(); it != rfans.end() &&(*it)!=null; it++)
     {
         if ((*it) ->outc == c)
@@ -507,6 +558,8 @@ vector<RFANODE*> gen_shift(vector<RFANODE*> & rfans,char c)
 vector<char>  get_next_chars(vector<RFANODE*> & rfans)
 {
     vector<char> cset = vector<char>();
+
+    //枚举每个RFA状态，查找能够进行转移的字符
     for (vector<RFANODE *>::iterator it = rfans.begin(); it != rfans.end() && (*it)!=null ; it++)
     {
         if ((*it) ->outc >= 0)
@@ -527,6 +580,9 @@ vector<char>  get_next_chars(vector<RFANODE*> & rfans)
 *************************************************/
 DFANODE* find_dfa(const bool *list)
 {
+    //首先，为什么要进行这个函数？
+    //主要是在创建一个新的DFA状态之前，找到之前有没有创建好的代表目前RFA状态集合的DFA
+    //避免重复创建
     bool * list2;
     for (set<_DFANODE *>::iterator it = dfanodes.begin(); it != dfanodes.end() ; it++)
     {
@@ -540,7 +596,7 @@ DFANODE* find_dfa(const bool *list)
 				break;
 			}
         }
-		if (!notequal)
+		if (!notequal)  //所代表的RFA状态全都相同 那么返回找到的指针
 			return *it;
     }
     return null;
@@ -556,21 +612,26 @@ DFANODE* find_dfa(const bool *list)
 *************************************************/
 DFANODE * gen_dfa_node(vector<RFANODE*> & rfans)
 {
-    bool* list = gen_eplosure(rfans);
-    DFANODE* dfan = find_dfa(list);
-    if (dfan != null)
-        return dfan;
+    bool* list = gen_eplosure(rfans);       //先求RFA状态集合的ε闭包
+    DFANODE* dfan = find_dfa(list);         //再看看之前创建好的DFA状态里面有没有符合要求的
+    if (dfan != null)               //找到之前的DFA状态
+        return dfan;                //啥也不做了  直接返回
 
-    dfan = new DFANODE(list);
+    dfan = new DFANODE(list);           //创建一个新的DFA状态
 
-    vector<char> cset = get_next_chars(rfans);
-    vector<RFANODE*> rfan_new;
+    vector<char> cset = get_next_chars(rfans);  //RFA集合里面能进行哪些转移？
+    vector<RFANODE*> rfan_new;      //新的RFA状态集合
+
+
+    //枚举每种转移
     for (vector<char>::iterator it = cset.begin(); it != cset.end() ; it++)
     {
-        rfan_new = gen_shift(rfans,*it);
-        dfan ->next[(int)(*it)] = gen_dfa_node(rfan_new);
+        rfan_new = gen_shift(rfans,*it);//进行转移，得到RFA状态集合
+        dfan ->next[(int)(*it)] = gen_dfa_node(rfan_new);   //递归调用  创建新的DFA状态
     }
-	return dfan;
+
+
+	return dfan;        //返回本次创建的DFA状态
 
 }
 
@@ -614,9 +675,13 @@ void dfa_output(DFA* pdfa)
 *************************************************/
 DFA * gen_dfa(RFA * prfa)
 {
-    DFA* pdfa = new DFA();
+    DFA* pdfa = new DFA();  //创建新的DFA
+
+    //将RFA的开始状态装入新的RFA状态集合  用于创建DFA状态
     vector<RFANODE*> rfans = vector<RFANODE*>();
 	rfans.push_back(prfa ->pstart);
+
+	//新创建的DFA状态作为DFA开始状态
     pdfa ->pstart = gen_dfa_node(rfans);
     return pdfa;
 }
@@ -639,22 +704,22 @@ int find_match_in_line(DFA* pdfa , char* c , int len , int line , REGEX_RESULT* 
 	DFANODE* pnode = pdfa ->pstart;
 	bool isfound = false;
 	REGEX_RESULT * presult;
-	while(p < len)
+	while(p < len)          //没查找到头
 	{
-		if (matchlen != 0 &&pnode ->type == DFA_END)
+		if (matchlen != 0 &&pnode ->type == DFA_END)    //找到终止状态，不终止，先记录下来
 		{
 			isfound = true;
 			matchsuccesslen = matchlen;
 		}
-		if (pnode ->next[(int)(c[p])] != null)
+		if (pnode ->next[(int)(c[p])] != null)  //DFA进入下一个状态
 		{
 			pnode = pnode ->next[(int)(c[p])];
 			matchlen ++;
 			p++;
 		}
-		else
+		else        //DFA进入失败状态
 		{
-			if (isfound)
+			if (isfound)    //这时候如果之前找到了一个匹配，说明是最长匹配了，记录下来
 			{
 				presult = new REGEX_RESULT(line , matchpos , matchsuccesslen , r , r ->next);
 				if (r ->next != null)
@@ -675,6 +740,8 @@ int find_match_in_line(DFA* pdfa , char* c , int len , int line , REGEX_RESULT* 
 			pnode = pdfa ->pstart;
 		}
 	}
+
+	//整个全结束，可能之前还有匹配没有记录  记录下来
 	if (matchlen != 0 &&pnode ->type == DFA_END)
 	{
 		isfound = true;
