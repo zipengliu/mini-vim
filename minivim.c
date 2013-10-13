@@ -8,7 +8,7 @@ extern line_t *head, *cur_line;     // buffer
 WINDOW *status_win, *cmd_win;       // windows to show status and command
 WINDOW *buffer_pad;                 // buffer window
 char cur_file_name[FILENAME_MAX] = "[No Name]";         // current file name
-REGEX_RESULT *search_head = null, *search_cur = null;   // search result
+REGEX_RESULT *search_head = NULL, *search_cur = NULL;   // search result
 
 
 
@@ -455,11 +455,11 @@ void search_mode() {
         PRINT_COMMAND_MSG("No match found!");
         return;
     } else {
-        assert(search_head != null);
-        assert(search_head->next != null);
+        assert(search_head != NULL);
+        assert(search_head->next != NULL);
         search_cur = search_head->next;
-        cury = search_cur->line;
         curx = search_cur->start;
+        scroll_lines(search_cur->line - cury);
     }
 }
 
@@ -469,12 +469,12 @@ void update_status() {
     assert(cur_line != NULL);
     werase(status_win);
     mvwprintw(status_win, 0, 0, "%s", cur_file_name);
-    /* if (cur_line->content != NULL) {     // For debug */
-    /*     wmove(cmd_win, 0, COLS / 2); */
-    /*     wclrtoeol(cmd_win); */
-    /*     mvwprintw(cmd_win, 0, COLS / 2, "%s", cur_line->content); */
-    /*     wrefresh(cmd_win); */
-    /* } */
+    if (cur_line->content != NULL) {     // For debug
+        wmove(cmd_win, 0, COLS / 2);
+        wclrtoeol(cmd_win);
+        mvwprintw(cmd_win, 0, COLS / 2, "%s", cur_line->content);
+        wrefresh(cmd_win);
+    }
     int p = (cury + 1) * 100 / num_lines;
     mvwprintw(status_win, 0, POS_INFO, "%*d%%", POS_WIDTH - 2, p);
     mvwprintw(status_win, 0, POS_INFO, "%d, %d", cury + 1, curx + 1);   // Count from 1
@@ -569,31 +569,37 @@ int is_number(const char *st) {
 /* 函数功能描述：光标移动到下一个匹配处
  */
 void goto_next_match() {
-    if (search_head == null || search_head->next == null) {
+    if (search_head == NULL || search_head->next == NULL) {
         PRINT_COMMAND_MSG("No match found!");
         return;
     }
-    if (search_cur->next == null)     // Last match
+    if (search_cur->next == NULL)     // Last match
         search_cur = search_head->next;
     else
         search_cur = search_cur->next;
-    cury = search_cur->line;
+    assert(search_cur != NULL);
+    mvwprintw(cmd_win, 0, 0, "%d %d", search_cur->line, search_cur->start);
+    wrefresh(cmd_win);
+    wmove(buffer_pad, cury, curx);
+    prefresh(buffer_pad, topy, 0, 0, 0, BUFFER_LINES - 1, COLS);
     curx = search_cur->start;
+    scroll_lines(search_cur->line - cury);
 }
 
 /* 函数功能描述：光标移动到上一个匹配处
  */
 void goto_prev_match() {
-    if (search_head == null || search_head->next == null) {
+    if (search_head == NULL || search_head->next == NULL) {
         PRINT_COMMAND_MSG("No match found!");
         return;
     }
     if (search_cur->prev == search_head) {     // First match
-        while (search_cur->next != null) search_cur = search_cur->next;
+        while (search_cur->next != NULL) search_cur = search_cur->next;
     } else
         search_cur = search_cur->prev;
-    cury = search_cur->line;
+    assert(search_cur != NULL);
     curx = search_cur->start;
+    scroll_lines(search_cur->line - cury);
 }
 
 /* 函数功能描述：光更新最顶一行的行号以及重新打印屏幕内的内容
