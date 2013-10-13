@@ -4,11 +4,14 @@
 
 // Global varialbles
 int cury, curx;             // the current position of the cursor
+int topy, boty;
 extern int num_lines;       // number of lines: define the available area for the cursor move
 extern line_t *head, *cur_line;     // buffer
 WINDOW *status_win, *cmd_win;       // windows to show status and command
+WINDOW *buffer_pad;
 char cur_file_name[FILENAME_MAX] = "[No Name]";         // current file name
 REGEX_RESULT *search_head = null, *search_cur = null;   // search result
+
 
 
 int main(int argc, const char *argv[])
@@ -30,7 +33,7 @@ int main(int argc, const char *argv[])
                 exit(1);
             }
             initialize_screens();
-            print_file();
+            print_file(0);
             control_mode();
 
             destroy_screens(0);
@@ -50,21 +53,25 @@ void initialize_screens() {
     cbreak();
     nonl();     // FIXME: the enter keystroke
     noecho();
-    scrollok(stdscr, TRUE);
-    setscrreg(0, LINES - 2);
-    idlok(stdscr, TRUE);
-    keypad(stdscr, TRUE);
     wresize(stdscr, LINES - 2, COLS);   // Leave two rows for status and command
-    getbegyx(stdscr, cury, curx);       // Set the initial cursor position
+    /* idlok(stdscr, TRUE); */
+    /* keypad(stdscr, TRUE); */
+    /* getbegyx(stdscr, cury, curx);       // Set the initial cursor position */
+
+    // Create a new pad
+    buffer_pad = newpad(BUFFER_LINES, COLS);
+    scrollok(buffer_pad, TRUE);
+    keypad(buffer_pad, TRUE);
+    idlok(buffer_pad, TRUE);
+    cury = curx = 0;
 
     // Create status bar and command bar
     status_win = newwin(1, COLS, LINES - 2, 0);
     wrefresh(status_win);
     update_status();
-    /* box(status_win, 0, 0); */
-    /* wrefresh(status_win); */
     cmd_win = newwin(1, COLS, LINES - 1, 0);
     wrefresh(cmd_win);
+
 }
 
 /* 函数功能描述：销毁屏幕
@@ -88,8 +95,8 @@ void insert_mode() {
     wrefresh(cmd_win);
     while (1) {
         update_status();
-        move(cury, curx);
-        refresh();
+        wmove(buffer_pad, cury - topy, curx);
+        prefresh(buffer_pad, 0, 0, 0, 0, BUFFER_LINES - 1, COLS);
         c = getch();
         if (c == KEY_ESC) break;
 
@@ -106,6 +113,8 @@ void insert_mode() {
                     if (curx > cur_line->len)
                         curx = cur_line->len;
                 }
+                if (cury > topy + BUFFER_LINES - 1)
+                    update_topy(cury - (topy + BUFFER_LINES - 1));
                 break;
 
             case KEY_UP:
@@ -116,6 +125,8 @@ void insert_mode() {
                     if (curx > cur_line->len)
                         curx = cur_line->len;
                 }
+                if (cury < topy)
+                    update_topy(topy - cury);
                 break;
 
             case KEY_RIGHT:
@@ -158,14 +169,14 @@ void insert_mode() {
 
             default:
                 add_char(cur_line, curx, c);
-                insch(c);
+                winsch(buffer_pad, c);
                 curx++;
                 break;
         }
     }
     if (curx) curx--;
-    move(cury, curx);
-    refresh();
+    wmove(buffer_pad, cury - topy, curx);
+    prefresh(buffer_pad, 0, 0, 0, 0, BUFFER_LINES - 1, COLS);
     werase(cmd_win);
     wrefresh(cmd_win);
 }
@@ -175,7 +186,7 @@ void insert_mode() {
 void control_mode() {
     int c;
     int val = 1, input_number = 0;        // number of lines (characters) for cursor movement
-    int i;
+    cury = curx = 0;
 
     if (head->next == NULL) {
         line_t *tmp = (line_t*) malloc(sizeof(line_t));
@@ -188,8 +199,8 @@ void control_mode() {
     cur_line = head->next;
 
     while (1) {
-        move(cury, curx);
-        refresh();
+        wmove(buffer_pad, cury - topy, curx);
+        prefresh(buffer_pad, 0, 0, 0, 0, BUFFER_LINES - 1, COLS);
         update_status();
         c = getch();
         switch (c) {
@@ -205,37 +216,12 @@ void control_mode() {
             case 'j':
             case KEY_DOWN:
             case KEY_ENTER:
-                if (cury < num_lines - val) {
-                    cury += val;
-                    for (i = 0; i < val; i++)
-                        cur_line = cur_line->next;
-                    assert(cur_line != NULL);
-                } else {
-                    cury = num_lines - 1;
-                    while (cur_line->next != NULL)
-                        cur_line = cur_line->next;
-                }
-                if (cur_line->len == 0)
-                    curx = 0;
-                else if (curx > cur_line->len - 1)
-                    curx = cur_line->len - 1;
+                scroll_lines(val);
                 break;
 
             case 'k':
             case KEY_UP:
-                if (cury - val + 1 > 0) {
-                    cury -= val;
-                    for (i = 0; i < val; i++)
-                        cur_line = cur_line->prev;
-                    assert(cur_line != NULL);
-                } else {
-                    cury = 0;
-                    cur_line = head->next;
-                }
-                if (cur_line->len == 0)
-                    curx = 0;
-                else if (curx > cur_line->len - 1)
-                    curx = cur_line->len - 1;
+                scroll_lines(-val);
                 break;
 
             case 'l':
@@ -248,6 +234,13 @@ void control_mode() {
                     else
                         curx = cur_line->len - 1;
                 }
+                break;
+
+            case 'u':
+            case 'd':
+            case 'b':
+            case 'f':
+                scroll_lines(BUFFER_LINES / 2);
                 break;
 
             case ':':
@@ -271,7 +264,7 @@ void control_mode() {
                 break;
 
             case 'I':
-                curx = 0;   // TODO: determine the non-space start
+                curx = 0;
                 insert_mode();
                 break;
 
@@ -476,8 +469,8 @@ void update_status() {
     mvwprintw(status_win, 0, POS_INFO, "%*d%%", POS_WIDTH - 2, (cury + 1) * 100 / num_lines);
     mvwprintw(status_win, 0, POS_INFO, "%d, %d", cury+1, curx+1);   // Count from 1 for readability
     wrefresh(status_win);
-    move(cury, curx);
-    refresh();
+    wmove(buffer_pad, cury - topy, curx);
+    prefresh(buffer_pad, 0, 0, 0, 0, BUFFER_LINES - 1, COLS);
 }
 
 /* 函数功能描述：保存文件
@@ -532,33 +525,19 @@ int read_file(const char *file_name) {
 
 /* 函数功能描述：把读取到的文件打印到屏幕
  */
-void print_file() {
+void print_file(int start_line) {
     line_t *iter;
-    int ret;
-    werase(stdscr);
-    cury = 0;
-    move(cury, curx);
-    refresh();
-    for (iter = head->next; iter != NULL; iter = iter->next) {
+    werase(buffer_pad);
+    int i = 0;
+    for (iter = head->next; iter != NULL && i < start_line; iter = iter->next)
+        i++;
+    i = 0;
+    for (; iter != NULL && i <= BUFFER_LINES - 1; iter = iter->next) {
         if (iter->content != NULL)
-            printw("%s", iter->content);
-        /* cury++; */
-        wscrl(stdscr, 1);
-        ret = move(cury, curx);
-        assert(ret == OK);
-        refresh();
+            mvwprintw(buffer_pad, i, 0, "%s", iter->content);
+        i++;
     }
-    /* move(cury = 0, curx = 0); */
-    ret = wscrl(stdscr, -num_lines);
-    assert(ret == OK);
-    refresh();
-
-    ret = wscrl(stdscr, 20);
-    assert(ret == OK);
-    refresh();
-
-    curx = getcurx(stdscr);
-    cury = getcury(stdscr);
+    prefresh(buffer_pad, 0, 0, 0, 0, BUFFER_LINES - 1, COLS);
     update_status();
 }
 
@@ -605,4 +584,50 @@ void goto_prev_match() {
         search_cur = search_cur->prev;
     cury = search_cur->line;
     curx = search_cur->start;
+}
+
+void update_topy(int delta) {
+    topy += delta;
+    mvwprintw(cmd_win, 0, 0, "update topy to %d", topy);
+    wrefresh(cmd_win);
+    print_file(topy);
+}
+
+void scroll_lines(int val) {
+    int i;
+    if (val > 0) {
+        if (cury < num_lines - val) {
+            cury += val;
+            for (i = 0; i < val; i++)
+                cur_line = cur_line->next;
+            assert(cur_line != NULL);
+        } else {
+            cury = num_lines - 1;
+            while (cur_line->next != NULL)
+                cur_line = cur_line->next;
+        }
+        if (cur_line->len == 0)
+            curx = 0;
+        else if (curx > cur_line->len - 1)
+            curx = cur_line->len - 1;
+        if (cury > topy + BUFFER_LINES - 1)
+            update_topy(cury - (topy + BUFFER_LINES - 1));
+    } else if (val < 0) {
+        val = -val;
+        if (cury - val + 1 > 0) {
+            cury -= val;
+            for (i = 0; i < val; i++)
+                cur_line = cur_line->prev;
+            assert(cur_line != NULL);
+        } else {
+            cury = 0;
+            cur_line = head->next;
+        }
+        if (cur_line->len == 0)
+            curx = 0;
+        else if (curx > cur_line->len - 1)
+            curx = cur_line->len - 1;
+        if (cury < topy)
+            update_topy(cury - topy);
+    }
 }

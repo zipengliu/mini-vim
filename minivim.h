@@ -23,6 +23,7 @@
 
 #define POS_WIDTH (COLS / 5)
 #define POS_INFO (4 * COLS / 5)
+#define BUFFER_LINES (LINES - 2)
 
 #define COMMAND_LENGTH 1000
 #define MAXLEN 128
@@ -34,12 +35,14 @@ void initialize_screens();
 void destroy_screens(int exit_code);
 int save_file(const char *file_name);     // Save the buffer to the file
 int read_file(const char *file_name);     // Read file into buffer and print the content
-void print_file();
+void print_file(int start_line);
 void update_status();     // Update the status bar (filename and cursor position).  If filename is NULL, only position is updated
 int is_number(const char* st);
 int input_command(char *cmd);
 void goto_next_match();
 void goto_prev_match();
+void update_topy(int delta);
+void scroll_lines(int n);
 
 // Modes functions
 void insert_mode();         // Hit i/I/a/A/o/O to enter in control mode
